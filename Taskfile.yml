@@ -1,0 +1,28 @@
+# https://taskfile.dev
+version: "3"
+
+tasks:
+  default:
+    cmds:
+      - task: fmt
+      - task: test
+
+  build:
+    cmds:
+      - cargo build
+
+  run:
+    cmds:
+      - cargo run
+
+  install:
+    cmds:
+      - cargo install --path .
+
+  test:
+    cmds:
+      - cargo test
+
+  fmt:
+    cmds:
+      - cargo fmt
