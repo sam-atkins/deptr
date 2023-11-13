@@ -1,10 +1,12 @@
 mod poetry;
+mod python_ast;
 mod validators;
 
 extern crate clap;
 
 use clap::Parser;
 use poetry::get_dependencies_from_pyproject;
+use python_ast::get_imports_from_src;
 use std::{
     error::Error,
     path::{Path, PathBuf},
@@ -67,8 +69,15 @@ pub fn get_args() -> CliResult<Config> {
 
 /// run executes the application
 pub fn run(config: Config) -> CliResult<()> {
+    if config.dev {
+        println!("Tracking dev dependencies not currently supported. Proceeding with Production dependencies only.");
+        println!("");
+    }
+
     let manifest_deps = get_dependencies_from_pyproject(config.toml_path);
     println!("{:?}", manifest_deps);
+    let import_stmts = get_imports_from_src(&config.src_path);
+    println!("{:?}", import_stmts);
 
     Ok(())
 }
