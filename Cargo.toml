@@ -2,11 +2,16 @@
 name = "deptr"
 version = "0.1.0"
 edition = "2021"
+description = "A dependency tracker to identify unused dependencies in projects"
+authors = ["Sam Atkins"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 clap = { version = "4.4.8", features = ["derive"] }
+serde = { version = "1.0.192", features = ["derive"] }
+serde_json = "1.0.108"
+toml = "0.8.8"
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
