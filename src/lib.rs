@@ -1,3 +1,5 @@
+mod validators;
+
 extern crate clap;
 
 use clap::Parser;
@@ -40,9 +42,18 @@ pub fn get_args() -> CliResult<Config> {
     let dev = cli.dev;
     let timer = cli.timer;
 
-    // TODO add path validation
-    let src_path = Path::new(&path).to_path_buf();
-    let toml_path = Path::new(&path).join("pyproject.toml").to_path_buf();
+    let path_result = validators::valid_python_path(&path);
+    let src_path: PathBuf;
+    let toml_path: PathBuf;
+    match path_result {
+        Ok(valid_path) => {
+            src_path = valid_path;
+            toml_path = Path::new(&src_path).join("pyproject.toml");
+        }
+        Err(e) => {
+            return Err(Box::new(e));
+        }
+    }
 
     Ok(Config {
         src_path,
@@ -54,7 +65,6 @@ pub fn get_args() -> CliResult<Config> {
 
 /// run executes the application
 pub fn run(config: Config) -> CliResult<()> {
-    println!("hello world");
     println!("config.src_path: {:?}", config.src_path.display());
     println!("config.toml_path: {:?}", config.toml_path.display());
     println!("config.dev: {:?}", config.dev);
