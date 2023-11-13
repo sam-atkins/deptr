@@ -1,8 +1,10 @@
+mod poetry;
 mod validators;
 
 extern crate clap;
 
 use clap::Parser;
+use poetry::get_dependencies_from_pyproject;
 use std::{
     error::Error,
     path::{Path, PathBuf},
@@ -65,9 +67,8 @@ pub fn get_args() -> CliResult<Config> {
 
 /// run executes the application
 pub fn run(config: Config) -> CliResult<()> {
-    println!("config.src_path: {:?}", config.src_path.display());
-    println!("config.toml_path: {:?}", config.toml_path.display());
-    println!("config.dev: {:?}", config.dev);
-    println!("config.timer: {:?}", config.timer);
+    let manifest_deps = get_dependencies_from_pyproject(config.toml_path);
+    println!("{:?}", manifest_deps);
+
     Ok(())
 }
