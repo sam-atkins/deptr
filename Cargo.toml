@@ -9,6 +9,7 @@ authors = ["Sam Atkins"]
 
 [dependencies]
 clap = { version = "4.4.8", features = ["derive"] }
+rustpython-parser = "0.3.0"
 serde = { version = "1.0.192", features = ["derive"] }
 serde_json = "1.0.108"
 toml = "0.8.8"
