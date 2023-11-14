@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "example"
+version = "0.1.0"
+description = "this is an example pyproject file for testing"
+authors = ["Sam Atkins"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.104.1"
+redis = "^4.5.5"
+sqlalchemy = "^2.0.17"
+pydantic = "^1.10.9"
+requests = "^2.31.0"
+tenacity = "^8.2.2"
+alembic = "^1.11.1"
+sentry-sdk = { version = "^1.34.0", extras = ["fastapi"] }
+python-dotenv = "^0.19.1"
+scikit-learn = "^1.3.2"
+mako = "^1.3.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
