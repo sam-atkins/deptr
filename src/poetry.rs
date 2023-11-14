@@ -23,17 +23,25 @@ struct Tool {
 #[derive(Deserialize, Debug)]
 struct Poetry {
     dependencies: HashMap<String, serde_json::Value>,
+    #[serde(rename = "dev-dependencies")]
+    dev_dependencies: Option<HashMap<String, serde_json::Value>>,
+    group: Option<Group>,
 }
-// TODO add support for dev-dependencies: group.dev.dependencies & older formats
-// # new poetry
-// [tool.poetry.group.dev.dependencies]
 
-// # older poetry
-// [tool.poetry.dev-dependencies]
+#[derive(Deserialize, Debug)]
+struct Group {
+    dev: Dev,
+}
+
+#[derive(Deserialize, Debug)]
+struct Dev {
+    dependencies: Option<HashMap<String, serde_json::Value>>,
+}
 
 /// Reads the pyproject.toml file and returns the dependencies
 pub fn get_dependencies_from_pyproject(
     toml_file_path: PathBuf,
+    with_dev_deps: bool,
 ) -> HashMap<String, serde_json::Value> {
     let mut toml_content: String = String::new();
     fs::File::open(toml_file_path)
@@ -48,6 +56,11 @@ pub fn get_dependencies_from_pyproject(
 
     // python is included as a dependency in poetry but we don't want to include it
     pyproject_dependencies.remove("python");
+
+    if with_dev_deps {
+        let dev_dependencies = get_dev_dependencies(pyproject);
+        pyproject_dependencies.extend(dev_dependencies);
+    }
 
     // NOTES:
     // - A few dependencies are named `python-something` but imported as `something` so we strip `python-` from the name
@@ -68,10 +81,24 @@ pub fn get_dependencies_from_pyproject(
     return pyproject_dependencies;
 }
 
+fn get_dev_dependencies(pyproject: PyProjectToml) -> HashMap<String, serde_json::Value> {
+    let mut all_dev_deps = HashMap::new();
+    if let Some(dev_dependencies) = pyproject.tool.poetry.dev_dependencies {
+        all_dev_deps.extend(dev_dependencies.into_iter());
+    }
+    if let Some(group) = pyproject.tool.poetry.group {
+        if let Some(dev_dependencies) = group.dev.dependencies {
+            all_dev_deps.extend(dev_dependencies.into_iter());
+        }
+    }
+
+    all_dev_deps
+}
+
 #[test]
 fn test_get_dependencies_from_pyproject() {
     let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/pyproject.toml");
-    let dependencies = get_dependencies_from_pyproject(toml_file_path);
+    let dependencies = get_dependencies_from_pyproject(toml_file_path, false);
     assert_eq!(dependencies.len(), 11);
     assert_eq!(
         dependencies.get("fastapi").unwrap(),
@@ -107,4 +134,39 @@ fn test_get_dependencies_from_pyproject() {
         &String::from("^1.3.2")
     );
     assert_eq!(dependencies.get("mako").unwrap(), &String::from("^1.3.0"));
+}
+
+#[test]
+fn test_get_dependencies_from_pyproject_with_dev() {
+    let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/pyproject.toml");
+    let dependencies = get_dependencies_from_pyproject(toml_file_path, true);
+    assert_eq!(dependencies.len(), 14);
+    assert_eq!(
+        dependencies.get("fastapi").unwrap(),
+        &String::from("^0.104.1")
+    );
+    assert_eq!(dependencies.get("pytest").unwrap(), &String::from("^7.4.0"));
+}
+
+#[test]
+fn test_get_dependencies_from_pyproject_with_dev_from_old_poetry() {
+    let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/input/old/pyproject.toml");
+    let dependencies = get_dependencies_from_pyproject(toml_file_path, true);
+    assert_eq!(dependencies.len(), 14);
+    assert_eq!(
+        dependencies.get("fastapi").unwrap(),
+        &String::from("^0.104.1")
+    );
+    assert_eq!(dependencies.get("pytest").unwrap(), &String::from("^7.4.0"));
+}
+
+#[test]
+fn test_get_dependencies_from_pyproject_with_dev_no_dev_in_poetry() {
+    let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/input/no_dev/pyproject.toml");
+    let dependencies = get_dependencies_from_pyproject(toml_file_path, true);
+    assert_eq!(dependencies.len(), 11);
+    assert_eq!(
+        dependencies.get("fastapi").unwrap(),
+        &String::from("^0.104.1")
+    );
 }

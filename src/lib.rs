@@ -86,7 +86,7 @@ pub fn run(config: Config) -> CliResult<()> {
         println!("");
     }
 
-    let manifest_deps = get_dependencies_from_pyproject(config.toml_path);
+    let manifest_deps = get_dependencies_from_pyproject(config.toml_path, config.dev);
     if config.verbose {
         let log_statement = "Manifest dependencies: ";
         print_keys(&manifest_deps, log_statement);
