@@ -30,6 +30,10 @@ struct Cli {
     /// Times the execution of the command (default: false)
     #[arg(short, long, default_value = "false")]
     timer: bool,
+
+    /// Verbose mode (default: false)
+    #[arg(short, long, default_value = "false")]
+    verbose: bool,
 }
 
 /// Config holds the configuration for the application
@@ -39,6 +43,7 @@ pub struct Config {
     toml_path: PathBuf,
     dev: bool,
     timer: bool,
+    verbose: bool,
 }
 
 /// get_args parses the command line arguments and returns a Config struct
@@ -47,6 +52,7 @@ pub fn get_args() -> CliResult<Config> {
     let path = cli.path.unwrap_or_else(|| ".".to_string());
     let dev = cli.dev;
     let timer = cli.timer;
+    let verbose = cli.verbose;
 
     let path_result = validators::valid_python_path(&path);
     let src_path: PathBuf;
@@ -66,6 +72,7 @@ pub fn get_args() -> CliResult<Config> {
         toml_path,
         dev,
         timer,
+        verbose,
     })
 }
 
@@ -80,11 +87,20 @@ pub fn run(config: Config) -> CliResult<()> {
     }
 
     let manifest_deps = get_dependencies_from_pyproject(config.toml_path);
+    if config.verbose {
+        let log_statement = "Manifest dependencies: ";
+        print_keys(&manifest_deps, log_statement);
+    }
     let import_stmts = get_imports_from_src(&config.src_path);
+    if config.verbose {
+        let log_statement = "Import statements: ";
+        print_keys(&import_stmts, log_statement);
+    }
 
     let unused_deps = find_unused_manifest_deps(manifest_deps, import_stmts);
     if unused_deps.len() == 0 {
-        println!("No unused dependencies found!");
+        println!("======================================");
+        println!("No unused dependencies found.");
     } else {
         println!("======================================");
         println!("Possible unused manifest dependencies: ");
@@ -100,6 +116,14 @@ pub fn run(config: Config) -> CliResult<()> {
     }
 
     Ok(())
+}
+
+fn print_keys<V>(manifest_deps: &HashMap<String, V>, log_statement: &str) {
+    println!("======================================");
+    println!("{}", log_statement);
+    for (key, _value) in manifest_deps.iter() {
+        println!("{}", key);
+    }
 }
 
 fn find_unused_manifest_deps(
