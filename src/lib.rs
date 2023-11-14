@@ -8,9 +8,11 @@ use clap::Parser;
 use poetry::get_dependencies_from_pyproject;
 use python_ast::get_imports_from_src;
 use std::{
+    collections::HashMap,
     error::Error,
     path::{Path, PathBuf},
     string::String,
+    time::Instant,
 };
 
 type CliResult<T> = Result<T, Box<dyn Error>>;
@@ -69,15 +71,71 @@ pub fn get_args() -> CliResult<Config> {
 
 /// run executes the application
 pub fn run(config: Config) -> CliResult<()> {
+    let start = Instant::now();
+
     if config.dev {
-        println!("Tracking dev dependencies not currently supported. Proceeding with Production dependencies only.");
+        println!("");
+        println!("WARNING: Tracking dev dependencies not yet implemented. Proceeding with Production dependencies only.");
         println!("");
     }
 
     let manifest_deps = get_dependencies_from_pyproject(config.toml_path);
-    println!("{:?}", manifest_deps);
     let import_stmts = get_imports_from_src(&config.src_path);
-    println!("{:?}", import_stmts);
+
+    let unused_deps = find_unused_manifest_deps(manifest_deps, import_stmts);
+    if unused_deps.len() == 0 {
+        println!("No unused dependencies found!");
+    } else {
+        println!("======================================");
+        println!("Possible unused manifest dependencies: ");
+        for dep in unused_deps.iter() {
+            println!("{}", dep);
+        }
+    }
+
+    if config.timer {
+        let duration = start.elapsed();
+        println!("======================================");
+        println!("Execution time: {:?}", duration);
+    }
 
     Ok(())
+}
+
+fn find_unused_manifest_deps(
+    manifest_deps: HashMap<String, serde_json::Value>,
+    import_stmts: HashMap<String, bool>,
+) -> Vec<String> {
+    let mut result: Vec<String> = Vec::new();
+    for (key, _value) in manifest_deps.iter() {
+        if !import_stmts.contains_key(key) {
+            result.push(key.to_string());
+        }
+    }
+    result
+}
+
+#[cfg(test)]
+mod lib {
+    use super::*;
+
+    #[test]
+    fn test_find_unused_manifest_deps() {
+        let mut manifest_deps = HashMap::new();
+        manifest_deps.insert(
+            "unused_dep".to_string(),
+            serde_json::Value::String("1.0.0".to_string()),
+        );
+        manifest_deps.insert(
+            "used_dep".to_string(),
+            serde_json::Value::String("1.0.0".to_string()),
+        );
+
+        let mut import_stmts = HashMap::new();
+        import_stmts.insert("used_dep".to_string(), true);
+
+        let unused_deps = find_unused_manifest_deps(manifest_deps, import_stmts);
+
+        assert_eq!(unused_deps, vec!["unused_dep"]);
+    }
 }
