@@ -1,6 +1,6 @@
 [package]
 name = "deptr"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "A dependency tracker to identify unused dependencies in projects"
 authors = ["Sam Atkins"]
