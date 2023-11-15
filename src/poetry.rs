@@ -4,7 +4,7 @@ extern crate toml;
 
 use serde::Deserialize;
 use serde_json;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
@@ -42,7 +42,7 @@ struct Dev {
 pub fn get_dependencies_from_pyproject(
     toml_file_path: PathBuf,
     with_dev_deps: bool,
-) -> HashMap<String, serde_json::Value> {
+) -> HashSet<String> {
     let mut toml_content: String = String::new();
     fs::File::open(toml_file_path)
         .expect("Failed to open file")
@@ -52,7 +52,8 @@ pub fn get_dependencies_from_pyproject(
     let pyproject: PyProjectToml =
         toml::from_str(&toml_content).expect("Failed to parse pyproject.toml");
 
-    let mut pyproject_dependencies = pyproject.tool.poetry.dependencies.clone();
+    let mut pyproject_dependencies: HashSet<_> =
+        pyproject.tool.poetry.dependencies.keys().cloned().collect();
 
     // python is included as a dependency in poetry but we don't want to include it
     pyproject_dependencies.remove("python");
@@ -64,24 +65,20 @@ pub fn get_dependencies_from_pyproject(
 
     pyproject_dependencies = pyproject_dependencies
         .into_iter()
-        .map(|(k, v)| {
-            let transformed_k = transform_dep_for_import_matching(&k);
-            (transformed_k, v)
-            // k = transform_dep_for_import_matching(&k);
-        })
+        .map(|dep| transform_dep_for_import_matching(&dep))
         .collect();
 
-    return pyproject_dependencies;
+    pyproject_dependencies
 }
 
-fn get_dev_dependencies(pyproject: PyProjectToml) -> HashMap<String, serde_json::Value> {
-    let mut all_dev_deps = HashMap::new();
+fn get_dev_dependencies(pyproject: PyProjectToml) -> HashSet<String> {
+    let mut all_dev_deps = HashSet::new();
     if let Some(dev_dependencies) = pyproject.tool.poetry.dev_dependencies {
-        all_dev_deps.extend(dev_dependencies.into_iter());
+        all_dev_deps.extend(dev_dependencies.keys().cloned());
     }
     if let Some(group) = pyproject.tool.poetry.group {
         if let Some(dev_dependencies) = group.dev.dependencies {
-            all_dev_deps.extend(dev_dependencies.into_iter());
+            all_dev_deps.extend(dev_dependencies.keys().cloned());
         }
     }
 
@@ -93,40 +90,22 @@ fn test_get_dependencies_from_pyproject() {
     let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/pyproject.toml");
     let dependencies = get_dependencies_from_pyproject(toml_file_path, false);
     assert_eq!(dependencies.len(), 11);
+    assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
+    assert_eq!(dependencies.get("redis"), Some(&"redis".to_string()));
     assert_eq!(
-        dependencies.get("fastapi").unwrap(),
-        &String::from("^0.104.1")
+        dependencies.get("sqlalchemy"),
+        Some(&"sqlalchemy".to_string())
     );
-    assert_eq!(dependencies.get("redis").unwrap(), &String::from("^4.5.5"));
+    assert_eq!(dependencies.get("pydantic"), Some(&"pydantic".to_string()));
+    assert_eq!(dependencies.get("requests"), Some(&"requests".to_string()));
+    assert_eq!(dependencies.get("tenacity"), Some(&"tenacity".to_string()));
+    assert_eq!(dependencies.get("alembic"), Some(&"alembic".to_string()));
+    assert_eq!(dependencies.get("dotenv"), Some(&"dotenv".to_string()));
     assert_eq!(
-        dependencies.get("sqlalchemy").unwrap(),
-        &String::from("^2.0.17")
+        dependencies.get("scikit_learn"),
+        Some(&"scikit_learn".to_string())
     );
-    assert_eq!(
-        dependencies.get("pydantic").unwrap(),
-        &String::from("^1.10.9")
-    );
-    assert_eq!(
-        dependencies.get("requests").unwrap(),
-        &String::from("^2.31.0")
-    );
-    assert_eq!(
-        dependencies.get("tenacity").unwrap(),
-        &String::from("^8.2.2")
-    );
-    assert_eq!(
-        dependencies.get("alembic").unwrap(),
-        &String::from("^1.11.1")
-    );
-    assert_eq!(
-        dependencies.get("dotenv").unwrap(),
-        &String::from("^0.19.1")
-    );
-    assert_eq!(
-        dependencies.get("scikit_learn").unwrap(),
-        &String::from("^1.3.2")
-    );
-    assert_eq!(dependencies.get("mako").unwrap(), &String::from("^1.3.0"));
+    assert_eq!(dependencies.get("mako"), Some(&"mako".to_string()));
 }
 
 #[test]
@@ -134,11 +113,8 @@ fn test_get_dependencies_from_pyproject_with_dev() {
     let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/pyproject.toml");
     let dependencies = get_dependencies_from_pyproject(toml_file_path, true);
     assert_eq!(dependencies.len(), 14);
-    assert_eq!(
-        dependencies.get("fastapi").unwrap(),
-        &String::from("^0.104.1")
-    );
-    assert_eq!(dependencies.get("pytest").unwrap(), &String::from("^7.4.0"));
+    assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
+    assert_eq!(dependencies.get("pytest"), Some(&"pytest".to_string()));
 }
 
 #[test]
@@ -146,11 +122,8 @@ fn test_get_dependencies_from_pyproject_with_dev_from_old_poetry() {
     let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/input/old/pyproject.toml");
     let dependencies = get_dependencies_from_pyproject(toml_file_path, true);
     assert_eq!(dependencies.len(), 14);
-    assert_eq!(
-        dependencies.get("fastapi").unwrap(),
-        &String::from("^0.104.1")
-    );
-    assert_eq!(dependencies.get("pytest").unwrap(), &String::from("^7.4.0"));
+    assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
+    assert_eq!(dependencies.get("pytest"), Some(&"pytest".to_string()));
 }
 
 #[test]
@@ -158,10 +131,7 @@ fn test_get_dependencies_from_pyproject_with_dev_no_dev_in_poetry() {
     let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/input/no_dev/pyproject.toml");
     let dependencies = get_dependencies_from_pyproject(toml_file_path, true);
     assert_eq!(dependencies.len(), 11);
-    assert_eq!(
-        dependencies.get("fastapi").unwrap(),
-        &String::from("^0.104.1")
-    );
+    assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
 }
 
 /// Transforms the dependency name to improve the likelihood of matching the import statement
