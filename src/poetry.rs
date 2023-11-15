@@ -62,19 +62,12 @@ pub fn get_dependencies_from_pyproject(
         pyproject_dependencies.extend(dev_dependencies);
     }
 
-    // NOTES:
-    // - A few dependencies are named `python-something` but imported as `something` so we strip `python-` from the name
-    // - A few dependencies have dashes but are imported using underscores so we replace `-` with `_`
     pyproject_dependencies = pyproject_dependencies
         .into_iter()
         .map(|(k, v)| {
-            if k.starts_with("python-") {
-                (k[7..].to_string(), v)
-            } else if k.contains("-") {
-                (k.replace("-", "_"), v)
-            } else {
-                (k, v)
-            }
+            let transformed_k = transform_dep_for_import_matching(&k);
+            (transformed_k, v)
+            // k = transform_dep_for_import_matching(&k);
         })
         .collect();
 
@@ -169,4 +162,38 @@ fn test_get_dependencies_from_pyproject_with_dev_no_dev_in_poetry() {
         dependencies.get("fastapi").unwrap(),
         &String::from("^0.104.1")
     );
+}
+
+/// Transforms the dependency name to improve the likelihood of matching the import statement
+/// - A few dependencies are named `python-something` but imported as `something` so we strip
+///   `python-` from the name
+/// - A few dependencies have dashes but are imported using underscores so we replace `-` with `_`
+fn transform_dep_for_import_matching(dep: &str) -> String {
+    let mut dep = dep.to_string();
+    if dep.starts_with("python-") {
+        dep = dep[7..].to_string();
+    }
+    if dep.contains("-") {
+        dep = dep.replace("-", "_");
+    }
+    dep
+}
+
+#[test]
+fn test_transform_dep_for_import_matching() {
+    let dep = "python-redis";
+    let transformed_dep = transform_dep_for_import_matching(dep);
+    assert_eq!(transformed_dep, "redis");
+
+    let dep = "python-redis-abc";
+    let transformed_dep = transform_dep_for_import_matching(dep);
+    assert_eq!(transformed_dep, "redis_abc");
+
+    let dep = "redis-abc";
+    let transformed_dep = transform_dep_for_import_matching(dep);
+    assert_eq!(transformed_dep, "redis_abc");
+
+    let dep = "redis";
+    let transformed_dep = transform_dep_for_import_matching(dep);
+    assert_eq!(transformed_dep, "redis");
 }
