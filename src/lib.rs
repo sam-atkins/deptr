@@ -9,7 +9,7 @@ use clap::Parser;
 use poetry::get_dependencies_from_pyproject;
 use python_ast::get_imports_from_src;
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     error::Error,
     path::{Path, PathBuf},
     string::String,
@@ -113,24 +113,19 @@ pub fn run(config: Config) -> CliResult<()> {
     Ok(())
 }
 
-fn print_keys<V>(manifest_deps: &HashMap<String, V>, log_statement: &str) {
+fn print_keys(manifest_deps: &HashSet<String>, log_statement: &str) {
     println!("======================================");
     println!("{}", log_statement);
-    for (key, _value) in manifest_deps.iter() {
-        println!("{}", key);
+    for dep in manifest_deps.iter() {
+        println!("{}", dep);
     }
 }
 
 fn find_unused_manifest_deps(
-    manifest_deps: HashMap<String, serde_json::Value>,
-    import_stmts: HashMap<String, bool>,
-) -> Vec<String> {
-    let mut result: Vec<String> = Vec::new();
-    for (key, _value) in manifest_deps.iter() {
-        if !import_stmts.contains_key(key) {
-            result.push(key.to_string());
-        }
-    }
+    manifest_deps: HashSet<String>,
+    import_stmts: HashSet<String>,
+) -> HashSet<String> {
+    let result: HashSet<String> = manifest_deps.difference(&import_stmts).cloned().collect();
     result
 }
 
@@ -140,21 +135,18 @@ mod lib {
 
     #[test]
     fn test_find_unused_manifest_deps() {
-        let mut manifest_deps = HashMap::new();
-        manifest_deps.insert(
-            "unused_dep".to_string(),
-            serde_json::Value::String("1.0.0".to_string()),
-        );
-        manifest_deps.insert(
-            "used_dep".to_string(),
-            serde_json::Value::String("1.0.0".to_string()),
-        );
+        let mut manifest_deps = HashSet::new();
+        manifest_deps.insert("unused_dep".to_string());
+        manifest_deps.insert("used_dep".to_string());
 
-        let mut import_stmts = HashMap::new();
-        import_stmts.insert("used_dep".to_string(), true);
+        let mut import_stmts = HashSet::new();
+        import_stmts.insert("used_dep".to_string());
 
         let unused_deps = find_unused_manifest_deps(manifest_deps, import_stmts);
-
-        assert_eq!(unused_deps, vec!["unused_dep"]);
+        assert_eq!(unused_deps.len(), 1);
+        assert_eq!(
+            unused_deps.get("unused_dep"),
+            Some(&"unused_dep".to_string())
+        );
     }
 }

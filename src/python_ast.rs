@@ -1,5 +1,5 @@
 use rustpython_parser::{ast, Parse};
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::string::String;
@@ -10,14 +10,14 @@ const EXCLUDED_DIRS: [&str; 4] = ["venv", ".pytest_cache", ".ruff_cache", ".venv
 
 /// Recursively walks the path provided, parses all .py files and
 /// returns a hashmap of all non-std lib imports
-pub fn get_imports_from_src(directory_path: &Path) -> HashMap<String, bool> {
+pub fn get_imports_from_src(directory_path: &Path) -> HashSet<String> {
     let ext = "py";
 
     return find_files_with_extension(directory_path, ext);
 }
 
-fn find_files_with_extension(dir: &Path, extension: &str) -> HashMap<String, bool> {
-    let mut result: HashMap<String, bool> = HashMap::new();
+fn find_files_with_extension(dir: &Path, extension: &str) -> HashSet<String> {
+    let mut result: HashSet<String> = HashSet::new();
 
     if dir.is_dir() {
         for entry in std::fs::read_dir(dir).expect("Failed to read directory") {
@@ -49,8 +49,8 @@ fn find_files_with_extension(dir: &Path, extension: &str) -> HashMap<String, boo
 
 /// Reads the Python modules and the import statements, filters out standard lib modules and
 /// returns the imports
-fn get_imports_from_python_module(module_path: &PathBuf) -> HashMap<String, bool> {
-    let mut imports: HashMap<String, bool> = HashMap::new();
+fn get_imports_from_python_module(module_path: &PathBuf) -> HashSet<String> {
+    let mut imports: HashSet<String> = HashSet::new();
     let module_str = module_path.to_str().unwrap();
     let python_source = fs::read_to_string(module_path).expect("Failed to read Python file");
 
@@ -61,7 +61,7 @@ fn get_imports_from_python_module(module_path: &PathBuf) -> HashMap<String, bool
             ast::Stmt::Import(import_stmt) => {
                 import_stmt.names.iter().for_each(|name| {
                     if !is_std_lib_module(name.name.as_str()) {
-                        imports.insert(name.name.as_str().to_string(), true);
+                        imports.insert(name.name.as_str().to_string());
                     }
                 });
             }
@@ -69,7 +69,7 @@ fn get_imports_from_python_module(module_path: &PathBuf) -> HashMap<String, bool
                 import_from_stmt.module.as_ref().map(|module| {
                     if !is_std_lib_module(&module.as_str()) {
                         let module_name = &module.as_str().split('.').next().unwrap().to_string();
-                        imports.insert(module_name.to_string(), true);
+                        imports.insert(module_name.to_string());
                     }
                 });
             }
