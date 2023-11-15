@@ -1,6 +1,7 @@
 mod poetry;
 mod python_ast;
-mod validators;
+mod python_std_lib;
+pub mod validators;
 
 extern crate clap;
 
@@ -79,12 +80,6 @@ pub fn get_args() -> CliResult<Config> {
 /// run executes the application
 pub fn run(config: Config) -> CliResult<()> {
     let start = Instant::now();
-
-    if config.dev {
-        println!("");
-        println!("WARNING: Tracking dev dependencies not yet implemented. Proceeding with Production dependencies only.");
-        println!("");
-    }
 
     let manifest_deps = get_dependencies_from_pyproject(config.toml_path, config.dev);
     if config.verbose {
