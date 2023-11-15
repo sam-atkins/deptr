@@ -3,6 +3,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+const INVALID_PATH: &str = "Invalid path provided";
+const MISSING_PYPROJECT_TOML: &str = "Unable to find a pyproject.toml file";
+const NON_SUPPORTED_TOOLING: &str =
+    "This does not appear to be a Poetry project (no poetry.lock file). Only Poetry is supported at this time. Isn't Python packaging fun? :)";
+
 #[derive(Debug)]
 pub enum PathError {
     InvalidPath,
@@ -13,9 +18,19 @@ pub enum PathError {
 impl fmt::Display for PathError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            PathError::InvalidPath => f.write_str("Invalid path provided"),
-            PathError::MissingPyprojectToml => f.write_str("Unable to find a pyproject.toml file"),
-            PathError::NonSupportedTooling => f.write_str("This does not appear to be a Poetry project (no poetry.lock file). Only Poetry is supported at this time. Isn't Python packaging fun? :)"),
+            PathError::InvalidPath => f.write_str(INVALID_PATH),
+            PathError::MissingPyprojectToml => f.write_str(MISSING_PYPROJECT_TOML),
+            PathError::NonSupportedTooling => f.write_str(NON_SUPPORTED_TOOLING),
+        }
+    }
+}
+
+impl From<PathError> for String {
+    fn from(error: PathError) -> Self {
+        match error {
+            PathError::InvalidPath => INVALID_PATH.to_string(),
+            PathError::MissingPyprojectToml => MISSING_PYPROJECT_TOML.to_string(),
+            PathError::NonSupportedTooling => NON_SUPPORTED_TOOLING.to_string(),
         }
     }
 }
