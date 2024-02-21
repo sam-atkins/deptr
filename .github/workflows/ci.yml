@@ -10,10 +10,17 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [1.75.0]
 
     steps:
+      # https://github.com/marketplace/actions/set-up-a-rust-toolchain
+      - uses: hecrj/setup-rust-action@v2
+        with:
+          rust-version: ${{ matrix.rust }}
       - uses: actions/checkout@v3
       - name: Build
         run: cargo build
