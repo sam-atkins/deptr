@@ -38,6 +38,17 @@ struct Dev {
     dependencies: Option<HashMap<String, serde_json::Value>>,
 }
 
+#[derive(Clone, Deserialize, Debug)]
+struct PoetryLock {
+    package: Vec<Package>,
+}
+
+#[derive(Clone, Deserialize, Debug)]
+struct Package {
+    name: String,
+    extras: Option<HashMap<String, serde_json::Value>>,
+}
+
 /// Reads the pyproject.toml file and returns the dependencies
 pub fn get_dependencies_from_pyproject(
     toml_file_path: PathBuf,
@@ -63,6 +74,7 @@ pub fn get_dependencies_from_pyproject(
         pyproject_dependencies.extend(dev_dependencies);
     }
 
+    // TODO need to transform/format later in control flow, so can look up package.extras in lockfile with unformatted package name
     pyproject_dependencies = pyproject_dependencies
         .into_iter()
         .map(|dep| transform_dep_for_import_matching(&dep))
@@ -85,11 +97,73 @@ fn get_dev_dependencies(pyproject: PyProjectToml) -> HashSet<String> {
     all_dev_deps
 }
 
+/// Checks the lock file for any package extras and returns a HashMap
+/// with the package name as the key and a Vec of the extras as the value
+/// for example:
+/// ```ignore
+///  {
+///     "pydantic": [
+///         "email-validator",
+///         "python-dotenv",
+///     ],
+/// }
+/// ```
+pub fn check_lock_file_for_package_extras(
+    project_path: PathBuf,
+    manifest_packages: HashSet<String>,
+) -> HashMap<String, Vec<String>> {
+    dbg!(manifest_packages.clone());
+
+    let lock_file_path = project_path.join("poetry.lock");
+    if !lock_file_path.exists() {
+        return HashMap::new();
+    }
+
+    let mut lock_file_content: String = String::new();
+    fs::File::open(lock_file_path)
+        .expect("Failed to open file")
+        .read_to_string(&mut lock_file_content)
+        .expect("Failed to read file");
+
+    let lock_file: PoetryLock = toml::from_str(&lock_file_content).unwrap();
+    let extras =
+        lock_file
+            .package
+            .iter()
+            .fold(HashMap::<String, Vec<String>>::new(), |mut acc, package| {
+                if let Some(extras) = &package.extras {
+                    for (_key, value) in extras {
+                        let array = value.as_array().unwrap();
+                        for item in array {
+                            let pkg = item.as_str().unwrap();
+                            if manifest_packages
+                                .iter()
+                                .any(|package| pkg.contains(package))
+                            {
+                                let fmt_pkg = pkg.split('(').next().unwrap_or("").trim();
+                                // TODO only print if verbose
+                                println!(
+                                    "Found {} - it is a dependency of {}",
+                                    fmt_pkg, package.name
+                                );
+                                acc.entry(package.name.clone())
+                                    .and_modify(|v| v.push(fmt_pkg.to_string()))
+                                    .or_insert_with(|| vec![fmt_pkg.to_string()]);
+                            }
+                        }
+                    }
+                }
+                acc
+            });
+    dbg!(extras.clone());
+    extras
+}
+
 #[test]
 fn test_get_dependencies_from_pyproject() {
     let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/pyproject.toml");
     let dependencies = get_dependencies_from_pyproject(toml_file_path, false);
-    assert_eq!(dependencies.len(), 11);
+    assert_eq!(dependencies.len(), 12);
     assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
     assert_eq!(dependencies.get("redis"), Some(&"redis".to_string()));
     assert_eq!(
@@ -112,7 +186,7 @@ fn test_get_dependencies_from_pyproject() {
 fn test_get_dependencies_from_pyproject_with_dev() {
     let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/pyproject.toml");
     let dependencies = get_dependencies_from_pyproject(toml_file_path, true);
-    assert_eq!(dependencies.len(), 14);
+    assert_eq!(dependencies.len(), 15);
     assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
     assert_eq!(dependencies.get("pytest"), Some(&"pytest".to_string()));
 }
@@ -166,4 +240,40 @@ fn test_transform_dep_for_import_matching() {
     let dep = "redis";
     let transformed_dep = transform_dep_for_import_matching(dep);
     assert_eq!(transformed_dep, "redis");
+}
+
+#[test]
+fn test_check_lock_file_for_package_extras() {
+    let project_path: PathBuf = PathBuf::from("tests/fixtures/input/lockfile");
+    let manifest_packages: HashSet<String> = [
+        "pydantic".to_string(),
+        "sci-kit-learn".to_string(),
+        "python-dotenv".to_string(),
+        "tenacity".to_string(),
+        "fastapi".to_string(),
+        "alembic".to_string(),
+        "sqlalchemy".to_string(),
+        "requests".to_string(),
+        "email-validator".to_string(),
+        "sentry-sdk".to_string(),
+        "mako".to_string(),
+        "redis".to_string(),
+    ]
+    .iter()
+    .cloned()
+    .collect();
+
+    let mut extras = check_lock_file_for_package_extras(project_path, manifest_packages);
+    for vec in extras.values_mut() {
+        vec.sort();
+    }
+
+    assert_eq!(extras.len(), 1);
+    assert_eq!(
+        extras.get("pydantic"),
+        Some(&vec![
+            "email-validator".to_string(),
+            "python-dotenv".to_string(),
+        ])
+    );
 }
