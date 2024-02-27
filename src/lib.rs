@@ -1,14 +1,16 @@
-mod domain;
+pub mod domain;
 mod formatters;
 mod poetry;
 mod python_ast;
 mod python_std_lib;
 pub mod validators;
 
-extern crate clap;
-
-use clap::Parser;
 use std::{error::Error, path::PathBuf, string::String, time::Instant};
+
+extern crate clap;
+use clap::Parser;
+
+use crate::domain::{PackageManager, PythonProject};
 
 type CliResult<T> = Result<T, Box<dyn Error>>;
 
@@ -71,16 +73,18 @@ pub fn get_args() -> CliResult<Config> {
 pub fn run(config: Config) -> CliResult<()> {
     let start = Instant::now();
 
-    let project = domain::PythonProject::new(config.src_path, config.verbose, config.dev);
-    let unused_deps = project.get_unused_packages();
+    // NOTE: currently only supports poetry projects
+    let pkg_manager = PackageManager::Poetry;
+    let project = PythonProject::new(pkg_manager, config.src_path, config.verbose, config.dev);
+    let unused_packages = project.get_unused_packages();
 
-    if unused_deps.len() == 0 {
+    if unused_packages.len() == 0 {
         println!("======================================");
-        println!("No unused dependencies found.");
+        println!("No unused packages found.");
     } else {
         println!("======================================");
-        println!("Possible unused manifest dependencies: ");
-        for dep in unused_deps.iter() {
+        println!("Possible unused manifest packages: ");
+        for dep in unused_packages.iter() {
             println!("{}", dep);
         }
     }
