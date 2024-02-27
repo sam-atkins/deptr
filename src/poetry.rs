@@ -1,5 +1,5 @@
 //! Poetry is a tool for dependency management and packaging in Python.
-//! This module parses the pyproject.toml file and extracts the dependencies.
+//! This module parses Poetry pyproject.toml and lock files to get package dependencies.
 extern crate toml;
 
 use serde::Deserialize;
@@ -51,7 +51,7 @@ struct Package {
 
 /// Reads the pyproject.toml file and returns the dependencies
 pub fn get_dependencies_from_pyproject(
-    toml_file_path: PathBuf,
+    toml_file_path: &PathBuf,
     with_dev_deps: bool,
 ) -> HashSet<String> {
     let mut toml_content: String = String::new();
@@ -73,12 +73,6 @@ pub fn get_dependencies_from_pyproject(
         let dev_dependencies = get_dev_dependencies(pyproject);
         pyproject_dependencies.extend(dev_dependencies);
     }
-
-    // TODO need to transform/format later in control flow, so can look up package.extras in lockfile with unformatted package name
-    pyproject_dependencies = pyproject_dependencies
-        .into_iter()
-        .map(|dep| transform_dep_for_import_matching(&dep))
-        .collect();
 
     pyproject_dependencies
 }
@@ -109,13 +103,13 @@ fn get_dev_dependencies(pyproject: PyProjectToml) -> HashSet<String> {
 /// }
 /// ```
 pub fn check_lock_file_for_package_extras(
-    project_path: PathBuf,
-    manifest_packages: HashSet<String>,
+    project_path: &PathBuf,
+    manifest_packages: &HashSet<String>,
+    verbose: bool,
 ) -> HashMap<String, Vec<String>> {
-    dbg!(manifest_packages.clone());
-
     let lock_file_path = project_path.join("poetry.lock");
     if !lock_file_path.exists() {
+        println!("WARNING: Project has no lock file.");
         return HashMap::new();
     }
 
@@ -141,11 +135,12 @@ pub fn check_lock_file_for_package_extras(
                                 .any(|package| pkg.contains(package))
                             {
                                 let fmt_pkg = pkg.split('(').next().unwrap_or("").trim();
-                                // TODO only print if verbose
-                                println!(
-                                    "Found {} - it is a dependency of {}",
-                                    fmt_pkg, package.name
-                                );
+                                if verbose {
+                                    println!(
+                                        "Found {} - it is an extra dependency of {}",
+                                        fmt_pkg, package.name
+                                    );
+                                }
                                 acc.entry(package.name.clone())
                                     .and_modify(|v| v.push(fmt_pkg.to_string()))
                                     .or_insert_with(|| vec![fmt_pkg.to_string()]);
@@ -155,14 +150,13 @@ pub fn check_lock_file_for_package_extras(
                 }
                 acc
             });
-    dbg!(extras.clone());
     extras
 }
 
 #[test]
 fn test_get_dependencies_from_pyproject() {
-    let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/pyproject.toml");
-    let dependencies = get_dependencies_from_pyproject(toml_file_path, false);
+    let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/example_project/pyproject.toml");
+    let dependencies = get_dependencies_from_pyproject(&toml_file_path, false);
     assert_eq!(dependencies.len(), 12);
     assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
     assert_eq!(dependencies.get("redis"), Some(&"redis".to_string()));
@@ -174,18 +168,21 @@ fn test_get_dependencies_from_pyproject() {
     assert_eq!(dependencies.get("requests"), Some(&"requests".to_string()));
     assert_eq!(dependencies.get("tenacity"), Some(&"tenacity".to_string()));
     assert_eq!(dependencies.get("alembic"), Some(&"alembic".to_string()));
-    assert_eq!(dependencies.get("dotenv"), Some(&"dotenv".to_string()));
     assert_eq!(
-        dependencies.get("scikit_learn"),
-        Some(&"scikit_learn".to_string())
+        dependencies.get("python-dotenv"),
+        Some(&"python-dotenv".to_string())
+    );
+    assert_eq!(
+        dependencies.get("scikit-learn"),
+        Some(&"scikit-learn".to_string())
     );
     assert_eq!(dependencies.get("mako"), Some(&"mako".to_string()));
 }
 
 #[test]
 fn test_get_dependencies_from_pyproject_with_dev() {
-    let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/pyproject.toml");
-    let dependencies = get_dependencies_from_pyproject(toml_file_path, true);
+    let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/example_project/pyproject.toml");
+    let dependencies = get_dependencies_from_pyproject(&toml_file_path, true);
     assert_eq!(dependencies.len(), 15);
     assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
     assert_eq!(dependencies.get("pytest"), Some(&"pytest".to_string()));
@@ -194,7 +191,7 @@ fn test_get_dependencies_from_pyproject_with_dev() {
 #[test]
 fn test_get_dependencies_from_pyproject_with_dev_from_old_poetry() {
     let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/input/old/pyproject.toml");
-    let dependencies = get_dependencies_from_pyproject(toml_file_path, true);
+    let dependencies = get_dependencies_from_pyproject(&toml_file_path, true);
     assert_eq!(dependencies.len(), 14);
     assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
     assert_eq!(dependencies.get("pytest"), Some(&"pytest".to_string()));
@@ -203,43 +200,9 @@ fn test_get_dependencies_from_pyproject_with_dev_from_old_poetry() {
 #[test]
 fn test_get_dependencies_from_pyproject_with_dev_no_dev_in_poetry() {
     let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/input/no_dev/pyproject.toml");
-    let dependencies = get_dependencies_from_pyproject(toml_file_path, true);
+    let dependencies = get_dependencies_from_pyproject(&toml_file_path, true);
     assert_eq!(dependencies.len(), 11);
     assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
-}
-
-/// Transforms the dependency name to improve the likelihood of matching the import statement
-/// - A few dependencies are named `python-something` but imported as `something` so we strip
-///   `python-` from the name
-/// - A few dependencies have dashes but are imported using underscores so we replace `-` with `_`
-fn transform_dep_for_import_matching(dep: &str) -> String {
-    let mut dep = dep.to_string();
-    if dep.starts_with("python-") {
-        dep = dep[7..].to_string();
-    }
-    if dep.contains("-") {
-        dep = dep.replace("-", "_");
-    }
-    dep
-}
-
-#[test]
-fn test_transform_dep_for_import_matching() {
-    let dep = "python-redis";
-    let transformed_dep = transform_dep_for_import_matching(dep);
-    assert_eq!(transformed_dep, "redis");
-
-    let dep = "python-redis-abc";
-    let transformed_dep = transform_dep_for_import_matching(dep);
-    assert_eq!(transformed_dep, "redis_abc");
-
-    let dep = "redis-abc";
-    let transformed_dep = transform_dep_for_import_matching(dep);
-    assert_eq!(transformed_dep, "redis_abc");
-
-    let dep = "redis";
-    let transformed_dep = transform_dep_for_import_matching(dep);
-    assert_eq!(transformed_dep, "redis");
 }
 
 #[test]
@@ -263,7 +226,7 @@ fn test_check_lock_file_for_package_extras() {
     .cloned()
     .collect();
 
-    let mut extras = check_lock_file_for_package_extras(project_path, manifest_packages);
+    let mut extras = check_lock_file_for_package_extras(&project_path, &manifest_packages, false);
     for vec in extras.values_mut() {
         vec.sort();
     }
