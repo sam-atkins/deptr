@@ -10,7 +10,7 @@ const APP: &str = "deptr";
 #[test]
 fn runs_with_success() -> TestResult {
     Command::cargo_bin(APP)?
-        .arg("./tests/fixtures/")
+        .arg("./tests/fixtures/example_project")
         .assert()
         .success();
     Ok(())

@@ -26,3 +26,7 @@ tasks:
   fmt:
     cmds:
       - cargo fmt
+
+  watch:
+    cmds:
+      - cargo watch -x check -x test

@@ -13,7 +13,7 @@ const EXCLUDED_DIRS: [&str; 4] = ["venv", ".pytest_cache", ".ruff_cache", ".venv
 pub fn get_imports_from_src(directory_path: &Path) -> HashSet<String> {
     let ext = "py";
 
-    return find_files_with_extension(directory_path, ext);
+    find_files_with_extension(directory_path, ext)
 }
 
 fn find_files_with_extension(dir: &Path, extension: &str) -> HashSet<String> {
@@ -77,5 +77,6 @@ fn get_imports_from_python_module(module_path: &PathBuf) -> HashSet<String> {
             _ => {}
         }
     }
-    return imports;
+
+    imports
 }

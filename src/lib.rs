@@ -1,3 +1,5 @@
+mod domain;
+mod formatters;
 mod poetry;
 mod python_ast;
 mod python_std_lib;
@@ -6,15 +8,7 @@ pub mod validators;
 extern crate clap;
 
 use clap::Parser;
-use poetry::get_dependencies_from_pyproject;
-use python_ast::get_imports_from_src;
-use std::{
-    collections::HashSet,
-    error::Error,
-    path::{Path, PathBuf},
-    string::String,
-    time::Instant,
-};
+use std::{error::Error, path::PathBuf, string::String, time::Instant};
 
 type CliResult<T> = Result<T, Box<dyn Error>>;
 
@@ -41,7 +35,6 @@ struct Cli {
 #[derive(Debug)]
 pub struct Config {
     src_path: PathBuf,
-    toml_path: PathBuf,
     dev: bool,
     timer: bool,
     verbose: bool,
@@ -57,11 +50,9 @@ pub fn get_args() -> CliResult<Config> {
 
     let path_result = validators::valid_python_path(&path);
     let src_path: PathBuf;
-    let toml_path: PathBuf;
     match path_result {
         Ok(valid_path) => {
             src_path = valid_path;
-            toml_path = Path::new(&src_path).join("pyproject.toml");
         }
         Err(e) => {
             return Err(Box::new(e));
@@ -70,7 +61,6 @@ pub fn get_args() -> CliResult<Config> {
 
     Ok(Config {
         src_path,
-        toml_path,
         dev,
         timer,
         verbose,
@@ -81,18 +71,9 @@ pub fn get_args() -> CliResult<Config> {
 pub fn run(config: Config) -> CliResult<()> {
     let start = Instant::now();
 
-    let manifest_deps = get_dependencies_from_pyproject(config.toml_path, config.dev);
-    if config.verbose {
-        let log_statement = "Manifest dependencies: ";
-        print_keys(&manifest_deps, log_statement);
-    }
-    let import_stmts = get_imports_from_src(&config.src_path);
-    if config.verbose {
-        let log_statement = "Import statements: ";
-        print_keys(&import_stmts, log_statement);
-    }
+    let project = domain::PythonProject::new(config.src_path, config.verbose, config.dev);
+    let unused_deps = project.get_unused_packages();
 
-    let unused_deps = find_unused_manifest_deps(manifest_deps, import_stmts);
     if unused_deps.len() == 0 {
         println!("======================================");
         println!("No unused dependencies found.");
@@ -111,42 +92,4 @@ pub fn run(config: Config) -> CliResult<()> {
     }
 
     Ok(())
-}
-
-fn print_keys(manifest_deps: &HashSet<String>, log_statement: &str) {
-    println!("======================================");
-    println!("{}", log_statement);
-    for dep in manifest_deps.iter() {
-        println!("{}", dep);
-    }
-}
-
-fn find_unused_manifest_deps(
-    manifest_deps: HashSet<String>,
-    import_stmts: HashSet<String>,
-) -> HashSet<String> {
-    let result: HashSet<String> = manifest_deps.difference(&import_stmts).cloned().collect();
-    result
-}
-
-#[cfg(test)]
-mod lib {
-    use super::*;
-
-    #[test]
-    fn test_find_unused_manifest_deps() {
-        let mut manifest_deps = HashSet::new();
-        manifest_deps.insert("unused_dep".to_string());
-        manifest_deps.insert("used_dep".to_string());
-
-        let mut import_stmts = HashSet::new();
-        import_stmts.insert("used_dep".to_string());
-
-        let unused_deps = find_unused_manifest_deps(manifest_deps, import_stmts);
-        assert_eq!(unused_deps.len(), 1);
-        assert_eq!(
-            unused_deps.get("unused_dep"),
-            Some(&"unused_dep".to_string())
-        );
-    }
 }

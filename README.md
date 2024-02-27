@@ -19,3 +19,10 @@ cargo install --path .
 ```bash
 deptr --help
 ```
+
+## Dev
+
+```bash
+cargo run -- --help
+cargo run path/to/pyproject
+```
