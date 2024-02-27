@@ -9,6 +9,12 @@ use crate::{
     python_ast::get_imports_from_src,
 };
 
+/// PackageManager is an enum that represents the Python package manager used in the project this
+/// application should scan for unused packages.
+pub enum PackageManager {
+    Poetry,
+}
+
 pub struct PythonProject {
     manifest_packages: HashSet<String>,
     extra_packages: HashMap<String, Vec<String>>,
@@ -17,7 +23,18 @@ pub struct PythonProject {
 
 impl PythonProject {
     /// Creates a new PythonProject instance
-    pub fn new(project_path: PathBuf, verbose: bool, dev: bool) -> Self {
+    pub fn new(
+        pkg_manager: PackageManager,
+        project_path: PathBuf,
+        verbose: bool,
+        dev: bool,
+    ) -> Self {
+        match pkg_manager {
+            PackageManager::Poetry => Self::new_poetry(project_path, verbose, dev),
+        }
+    }
+
+    fn new_poetry(project_path: PathBuf, verbose: bool, dev: bool) -> Self {
         let toml_path = project_path.join("pyproject.toml");
         let manifest_packages = get_dependencies_from_pyproject(&toml_path, dev);
         let extra_packages =
@@ -94,7 +111,8 @@ mod tests {
         let project_path: PathBuf = PathBuf::from("tests/fixtures/example_project");
         let verbose = false;
         let dev = false;
-        let project = PythonProject::new(project_path, verbose, dev);
+        let pkg_manager = PackageManager::Poetry;
+        let project = PythonProject::new(pkg_manager, project_path, verbose, dev);
         let result = project.get_unused_packages();
         let expected = [
             "tenacity".to_string(),
@@ -110,7 +128,8 @@ mod tests {
         let project_path: PathBuf = PathBuf::from("tests/fixtures/example_project");
         let verbose = false;
         let dev = false;
-        let project = PythonProject::new(project_path, verbose, dev);
+        let pkg_manager = PackageManager::Poetry;
+        let project = PythonProject::new(pkg_manager, project_path, verbose, dev);
         let result = project.find_unused_manifest_packages();
         let expected = [
             "tenacity".to_string(),
@@ -128,7 +147,8 @@ mod tests {
         let project_path: PathBuf = PathBuf::from("tests/fixtures/example_project");
         let verbose = false;
         let dev = false;
-        let project = PythonProject::new(project_path, verbose, dev);
+        let pkg_manager = PackageManager::Poetry;
+        let project = PythonProject::new(pkg_manager, project_path, verbose, dev);
         let unused_packages = project.get_unused_packages();
         let result = project.filter_package_extras(unused_packages);
         let expected = [
@@ -145,7 +165,8 @@ mod tests {
         let project_path: PathBuf = PathBuf::from("tests/fixtures/example_project_2");
         let verbose = false;
         let dev = false;
-        let project = PythonProject::new(project_path, verbose, dev);
+        let pkg_manager = PackageManager::Poetry;
+        let project = PythonProject::new(pkg_manager, project_path, verbose, dev);
         let unused_packages = project.get_unused_packages();
         let result = project.filter_package_extras(unused_packages);
         let expected = [
