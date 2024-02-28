@@ -1,14 +1,17 @@
 //! Poetry is a tool for dependency management and packaging in Python.
 //! This module parses Poetry pyproject.toml and lock files to get package dependencies.
-extern crate toml;
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    fs,
+    io::Read,
+    path::PathBuf,
+    string::String,
+};
 
+extern crate toml;
 use serde::Deserialize;
 use serde_json;
-use std::collections::{HashMap, HashSet};
-use std::fs;
-use std::io::Read;
-use std::path::PathBuf;
-use std::string::String;
 
 #[derive(Deserialize, Debug)]
 struct PyProjectToml {
@@ -53,15 +56,10 @@ struct Package {
 pub fn get_dependencies_from_pyproject(
     toml_file_path: &PathBuf,
     with_dev_deps: bool,
-) -> HashSet<String> {
+) -> Result<HashSet<String>, Box<dyn Error>> {
     let mut toml_content: String = String::new();
-    fs::File::open(toml_file_path)
-        .expect("Failed to open file")
-        .read_to_string(&mut toml_content)
-        .expect("Failed to read file");
-
-    let pyproject: PyProjectToml =
-        toml::from_str(&toml_content).expect("Failed to parse pyproject.toml");
+    fs::File::open(toml_file_path)?.read_to_string(&mut toml_content)?;
+    let pyproject: PyProjectToml = toml::from_str(&toml_content)?;
 
     let mut pyproject_dependencies: HashSet<_> =
         pyproject.tool.poetry.dependencies.keys().cloned().collect();
@@ -74,7 +72,7 @@ pub fn get_dependencies_from_pyproject(
         pyproject_dependencies.extend(dev_dependencies);
     }
 
-    pyproject_dependencies
+    Ok(pyproject_dependencies)
 }
 
 fn get_dev_dependencies(pyproject: PyProjectToml) -> HashSet<String> {
@@ -106,20 +104,17 @@ pub fn check_lock_file_for_package_extras(
     project_path: &PathBuf,
     manifest_packages: &HashSet<String>,
     verbose: bool,
-) -> HashMap<String, Vec<String>> {
+) -> Result<HashMap<String, Vec<String>>, Box<dyn Error>> {
     let lock_file_path = project_path.join("poetry.lock");
     if !lock_file_path.exists() {
         println!("WARNING: Project has no lock file.");
-        return HashMap::new();
+        return Ok(HashMap::new());
     }
 
     let mut lock_file_content: String = String::new();
-    fs::File::open(lock_file_path)
-        .expect("Failed to open file")
-        .read_to_string(&mut lock_file_content)
-        .expect("Failed to read file");
+    fs::File::open(lock_file_path)?.read_to_string(&mut lock_file_content)?;
 
-    let lock_file: PoetryLock = toml::from_str(&lock_file_content).unwrap();
+    let lock_file: PoetryLock = toml::from_str(&lock_file_content)?;
     let extras =
         lock_file
             .package
@@ -150,93 +145,122 @@ pub fn check_lock_file_for_package_extras(
                 }
                 acc
             });
-    extras
+    Ok(extras)
 }
 
-#[test]
-fn test_get_dependencies_from_pyproject() {
-    let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/example_project/pyproject.toml");
-    let dependencies = get_dependencies_from_pyproject(&toml_file_path, false);
-    assert_eq!(dependencies.len(), 12);
-    assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
-    assert_eq!(dependencies.get("redis"), Some(&"redis".to_string()));
-    assert_eq!(
-        dependencies.get("sqlalchemy"),
-        Some(&"sqlalchemy".to_string())
-    );
-    assert_eq!(dependencies.get("pydantic"), Some(&"pydantic".to_string()));
-    assert_eq!(dependencies.get("requests"), Some(&"requests".to_string()));
-    assert_eq!(dependencies.get("tenacity"), Some(&"tenacity".to_string()));
-    assert_eq!(dependencies.get("alembic"), Some(&"alembic".to_string()));
-    assert_eq!(
-        dependencies.get("python-dotenv"),
-        Some(&"python-dotenv".to_string())
-    );
-    assert_eq!(
-        dependencies.get("scikit-learn"),
-        Some(&"scikit-learn".to_string())
-    );
-    assert_eq!(dependencies.get("mako"), Some(&"mako".to_string()));
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn test_get_dependencies_from_pyproject_with_dev() {
-    let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/example_project/pyproject.toml");
-    let dependencies = get_dependencies_from_pyproject(&toml_file_path, true);
-    assert_eq!(dependencies.len(), 15);
-    assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
-    assert_eq!(dependencies.get("pytest"), Some(&"pytest".to_string()));
-}
-
-#[test]
-fn test_get_dependencies_from_pyproject_with_dev_from_old_poetry() {
-    let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/input/old/pyproject.toml");
-    let dependencies = get_dependencies_from_pyproject(&toml_file_path, true);
-    assert_eq!(dependencies.len(), 14);
-    assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
-    assert_eq!(dependencies.get("pytest"), Some(&"pytest".to_string()));
-}
-
-#[test]
-fn test_get_dependencies_from_pyproject_with_dev_no_dev_in_poetry() {
-    let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/input/no_dev/pyproject.toml");
-    let dependencies = get_dependencies_from_pyproject(&toml_file_path, true);
-    assert_eq!(dependencies.len(), 11);
-    assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
-}
-
-#[test]
-fn test_check_lock_file_for_package_extras() {
-    let project_path: PathBuf = PathBuf::from("tests/fixtures/input/lockfile");
-    let manifest_packages: HashSet<String> = [
-        "pydantic".to_string(),
-        "sci-kit-learn".to_string(),
-        "python-dotenv".to_string(),
-        "tenacity".to_string(),
-        "fastapi".to_string(),
-        "alembic".to_string(),
-        "sqlalchemy".to_string(),
-        "requests".to_string(),
-        "email-validator".to_string(),
-        "sentry-sdk".to_string(),
-        "mako".to_string(),
-        "redis".to_string(),
-    ]
-    .iter()
-    .cloned()
-    .collect();
-
-    let mut extras = check_lock_file_for_package_extras(&project_path, &manifest_packages, false);
-    for vec in extras.values_mut() {
-        vec.sort();
+    #[test]
+    fn test_get_dependencies_from_pyproject() {
+        let toml_file_path: PathBuf =
+            PathBuf::from("tests/fixtures/example_project/pyproject.toml");
+        let dependencies = get_dependencies_from_pyproject(&toml_file_path, false)
+            .expect("expected to get deps from manifest");
+        assert_eq!(dependencies.len(), 12);
+        assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
+        assert_eq!(dependencies.get("redis"), Some(&"redis".to_string()));
+        assert_eq!(
+            dependencies.get("sqlalchemy"),
+            Some(&"sqlalchemy".to_string())
+        );
+        assert_eq!(dependencies.get("pydantic"), Some(&"pydantic".to_string()));
+        assert_eq!(dependencies.get("requests"), Some(&"requests".to_string()));
+        assert_eq!(dependencies.get("tenacity"), Some(&"tenacity".to_string()));
+        assert_eq!(dependencies.get("alembic"), Some(&"alembic".to_string()));
+        assert_eq!(
+            dependencies.get("python-dotenv"),
+            Some(&"python-dotenv".to_string())
+        );
+        assert_eq!(
+            dependencies.get("scikit-learn"),
+            Some(&"scikit-learn".to_string())
+        );
+        assert_eq!(dependencies.get("mako"), Some(&"mako".to_string()));
     }
 
-    assert_eq!(extras.len(), 1);
-    assert_eq!(
-        extras.get("pydantic"),
-        Some(&vec![
-            "email-validator".to_string(),
+    #[test]
+    fn test_get_dependencies_from_pyproject_with_dev() {
+        let toml_file_path: PathBuf =
+            PathBuf::from("tests/fixtures/example_project/pyproject.toml");
+        let dependencies = get_dependencies_from_pyproject(&toml_file_path, true)
+            .expect("expected to get deps from manifest");
+        assert_eq!(dependencies.len(), 15);
+        assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
+        assert_eq!(dependencies.get("pytest"), Some(&"pytest".to_string()));
+    }
+
+    #[test]
+    fn test_get_dependencies_from_pyproject_with_dev_from_old_poetry() {
+        let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/input/old/pyproject.toml");
+        let dependencies = get_dependencies_from_pyproject(&toml_file_path, true)
+            .expect("expected to get deps from manifest");
+        assert_eq!(dependencies.len(), 14);
+        assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
+        assert_eq!(dependencies.get("pytest"), Some(&"pytest".to_string()));
+    }
+
+    #[test]
+    fn test_get_dependencies_from_pyproject_with_dev_no_dev_in_poetry() {
+        let toml_file_path: PathBuf = PathBuf::from("tests/fixtures/input/no_dev/pyproject.toml");
+        let dependencies = get_dependencies_from_pyproject(&toml_file_path, true)
+            .expect("expected to get deps from manifest");
+        assert_eq!(dependencies.len(), 11);
+        assert_eq!(dependencies.get("fastapi"), Some(&"fastapi".to_string()));
+    }
+
+    #[test]
+    fn test_get_dependencies_from_pyproject_malformed_pyproject_toml() {
+        let toml_file_path: PathBuf =
+            PathBuf::from("tests/fixtures/input/malformed_pyproject/pyproject.toml");
+        let dependencies = get_dependencies_from_pyproject(&toml_file_path, true);
+        assert!(dependencies.is_err());
+    }
+
+    #[test]
+    fn test_check_lock_file_for_package_extras() {
+        let project_path: PathBuf = PathBuf::from("tests/fixtures/input/lockfile");
+        let manifest_packages: HashSet<String> = [
+            "pydantic".to_string(),
+            "sci-kit-learn".to_string(),
             "python-dotenv".to_string(),
-        ])
-    );
+            "tenacity".to_string(),
+            "fastapi".to_string(),
+            "alembic".to_string(),
+            "sqlalchemy".to_string(),
+            "requests".to_string(),
+            "email-validator".to_string(),
+            "sentry-sdk".to_string(),
+            "mako".to_string(),
+            "redis".to_string(),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        let mut extras =
+            check_lock_file_for_package_extras(&project_path, &manifest_packages, false)
+                .expect("failed to parse lock file");
+        for vec in extras.values_mut() {
+            vec.sort();
+        }
+
+        assert_eq!(extras.len(), 1);
+        assert_eq!(
+            extras.get("pydantic"),
+            Some(&vec![
+                "email-validator".to_string(),
+                "python-dotenv".to_string(),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_check_lock_file_for_package_extras_malformed_lockfile() {
+        let project_path = PathBuf::from("tests/fixtures/input/malformed_lockfile");
+        let manifest_packages: HashSet<String> = ["pydantic".to_string()].iter().cloned().collect();
+        let extras = check_lock_file_for_package_extras(&project_path, &manifest_packages, false);
+        assert!(extras.is_err());
+    }
 }
