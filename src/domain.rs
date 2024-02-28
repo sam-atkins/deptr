@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    error::Error,
     path::PathBuf,
 };
 
@@ -28,24 +29,27 @@ impl PythonProject {
         project_path: PathBuf,
         verbose: bool,
         dev: bool,
-    ) -> Self {
+    ) -> Result<Self, Box<dyn Error>> {
         match pkg_manager {
-            PackageManager::Poetry => Self::new_poetry(project_path, verbose, dev),
+            PackageManager::Poetry => match Self::new_poetry(project_path, verbose, dev) {
+                Ok(result) => Ok(result),
+                Err(e) => Err(e),
+            },
         }
     }
 
-    fn new_poetry(project_path: PathBuf, verbose: bool, dev: bool) -> Self {
+    fn new_poetry(project_path: PathBuf, verbose: bool, dev: bool) -> Result<Self, Box<dyn Error>> {
         let toml_path = project_path.join("pyproject.toml");
-        let manifest_packages = get_dependencies_from_pyproject(&toml_path, dev);
+        let manifest_packages = get_dependencies_from_pyproject(&toml_path, dev)?;
         let extra_packages =
-            check_lock_file_for_package_extras(&project_path, &manifest_packages, verbose);
-        let import_statements = get_imports_from_src(&project_path);
+            check_lock_file_for_package_extras(&project_path, &manifest_packages, verbose)?;
+        let import_statements = get_imports_from_src(&project_path)?;
 
-        Self {
+        Ok(Self {
             manifest_packages,
             extra_packages,
             import_statements,
-        }
+        })
     }
 
     /// Returns a HashSet of unused packages
@@ -113,7 +117,9 @@ mod tests {
         let dev = false;
         let pkg_manager = PackageManager::Poetry;
         let project = PythonProject::new(pkg_manager, project_path, verbose, dev);
-        let result = project.get_unused_packages();
+        let result = project
+            .expect("expected to get unused deps")
+            .get_unused_packages();
         let expected = [
             "tenacity".to_string(),
             "sentry_sdk".to_string(),
@@ -130,7 +136,9 @@ mod tests {
         let dev = false;
         let pkg_manager = PackageManager::Poetry;
         let project = PythonProject::new(pkg_manager, project_path, verbose, dev);
-        let result = project.find_unused_manifest_packages();
+        let result = project
+            .expect("expected to get unused deps")
+            .find_unused_manifest_packages();
         let expected = [
             "tenacity".to_string(),
             "dotenv".to_string(),
@@ -149,8 +157,13 @@ mod tests {
         let dev = false;
         let pkg_manager = PackageManager::Poetry;
         let project = PythonProject::new(pkg_manager, project_path, verbose, dev);
-        let unused_packages = project.get_unused_packages();
-        let result = project.filter_package_extras(unused_packages);
+        let unused_packages = project
+            .as_ref()
+            .expect("expected to get unused deps")
+            .get_unused_packages();
+        let result = project
+            .expect("expected to filter extra deps")
+            .filter_package_extras(unused_packages);
         let expected = [
             "tenacity".to_string(),
             "sentry_sdk".to_string(),
@@ -167,8 +180,13 @@ mod tests {
         let dev = false;
         let pkg_manager = PackageManager::Poetry;
         let project = PythonProject::new(pkg_manager, project_path, verbose, dev);
-        let unused_packages = project.get_unused_packages();
-        let result = project.filter_package_extras(unused_packages);
+        let unused_packages = project
+            .as_ref()
+            .expect("expected to get unused deps")
+            .get_unused_packages();
+        let result = project
+            .expect("expected to filter extra deps")
+            .filter_package_extras(unused_packages);
         let expected = [
             "requests".to_string(),
             "pydantic".to_string(),

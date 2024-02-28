@@ -75,7 +75,7 @@ pub fn run(config: Config) -> CliResult<()> {
 
     // NOTE: currently only supports poetry projects
     let pkg_manager = PackageManager::Poetry;
-    let project = PythonProject::new(pkg_manager, config.src_path, config.verbose, config.dev);
+    let project = PythonProject::new(pkg_manager, config.src_path, config.verbose, config.dev)?;
     let unused_packages = project.get_unused_packages();
 
     if unused_packages.len() == 0 {
