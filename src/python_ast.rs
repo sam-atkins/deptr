@@ -120,3 +120,27 @@ fn get_imports_from_python_module(
 
     Ok(imports)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_imports_from_src() {
+        let test_path = Path::new("tests/fixtures/example_project");
+        let result = get_imports_from_src(test_path).unwrap();
+        let expected: HashSet<String> = [
+            "requests".to_string(),
+            "alembic".to_string(),
+            "mako".to_string(),
+            "sqlalchemy".to_string(),
+            "pydantic".to_string(),
+            "fastapi".to_string(),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(result, expected);
+    }
+}
