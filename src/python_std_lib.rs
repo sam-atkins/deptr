@@ -225,11 +225,16 @@ fn python_std_lib() -> HashMap<&'static str, bool> {
     return std_lib_modules;
 }
 
-#[test]
-fn test_is_std_lib_module() {
-    let std_lib_modules = python_std_lib();
-    assert_eq!(std_lib_modules.contains_key("abc"), true);
-    assert_eq!(std_lib_modules.contains_key("setuptools"), true);
-    assert_eq!(std_lib_modules.contains_key("wheel"), true);
-    assert_eq!(std_lib_modules.contains_key("requests"), false);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_std_lib_module() {
+        let std_lib_modules = python_std_lib();
+        assert_eq!(std_lib_modules.contains_key("abc"), true);
+        assert_eq!(std_lib_modules.contains_key("setuptools"), true);
+        assert_eq!(std_lib_modules.contains_key("wheel"), true);
+        assert_eq!(std_lib_modules.contains_key("requests"), false);
+    }
 }

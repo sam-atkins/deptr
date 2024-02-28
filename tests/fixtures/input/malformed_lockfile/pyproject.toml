@@ -1,0 +1,14 @@
+[tool.poetry
+name = "example"
+version = "0.1.0"
+description = "this is an example pyproject file for testing"
+authors = ["Sam Atkins"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+fastapi = "^0.104.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+python = "^3.11"
