@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        rust: [1.75.0]
+        rust: [stable, nightly]
 
     steps:
       # https://github.com/marketplace/actions/set-up-a-rust-toolchain
@@ -22,3 +22,4 @@ jobs:
         run: cargo build
       - name: Run tests
         run: cargo test
+        continue-on-error: ${{ matrix.rust == 'nightly' }}
