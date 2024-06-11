@@ -3,7 +3,7 @@ use std::collections::HashMap;
 /// Checks if a module is part of the Python standard library.
 pub fn is_std_lib_module(module_name: &str) -> bool {
     let std_lib_modules = python_std_lib();
-    return std_lib_modules.contains_key(module_name);
+    std_lib_modules.contains_key(module_name)
 }
 
 /// Returns a hashmap of all the Python standard library modules.
@@ -222,7 +222,7 @@ fn python_std_lib() -> HashMap<&'static str, bool> {
     std_lib_modules.insert("setuptools", true);
     std_lib_modules.insert("wheel", true);
 
-    return std_lib_modules;
+    std_lib_modules
 }
 
 #[cfg(test)]
@@ -232,9 +232,9 @@ mod tests {
     #[test]
     fn test_is_std_lib_module() {
         let std_lib_modules = python_std_lib();
-        assert_eq!(std_lib_modules.contains_key("abc"), true);
-        assert_eq!(std_lib_modules.contains_key("setuptools"), true);
-        assert_eq!(std_lib_modules.contains_key("wheel"), true);
-        assert_eq!(std_lib_modules.contains_key("requests"), false);
+        assert!(std_lib_modules.contains_key("abc"));
+        assert!(std_lib_modules.contains_key("setuptools"));
+        assert!(std_lib_modules.contains_key("wheel"));
+        assert!(!std_lib_modules.contains_key("requests"));
     }
 }

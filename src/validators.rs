@@ -71,7 +71,7 @@ fn provided_path(source_code_path: &Path) -> Result<bool, PathError> {
 
 fn check_pyproject_file_exists(source_code_path: &Path) -> Result<bool, PathError> {
     let toml_file_path: PathBuf = Path::new(&source_code_path).join("pyproject.toml");
-    match fs::metadata(&toml_file_path) {
+    match fs::metadata(toml_file_path) {
         Ok(_) => Ok(true),
         Err(_) => Err(PathError::MissingPyprojectToml),
     }
@@ -79,7 +79,7 @@ fn check_pyproject_file_exists(source_code_path: &Path) -> Result<bool, PathErro
 
 fn check_is_poetry_project(source_code_path: &Path) -> Result<bool, PathError> {
     let lock_file_path: PathBuf = Path::new(&source_code_path).join("poetry.lock");
-    match fs::metadata(&lock_file_path) {
+    match fs::metadata(lock_file_path) {
         Ok(_) => Ok(true),
         Err(_) => Err(PathError::NonSupportedTooling),
     }
