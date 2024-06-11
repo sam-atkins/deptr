@@ -9,8 +9,8 @@ pub fn reformat_package_name(package: &str) -> String {
     if package.starts_with("python-") {
         package = package[7..].to_string();
     }
-    if package.contains("-") {
-        package = package.replace("-", "_");
+    if package.contains('-') {
+        package = package.replace('-', "_");
     }
     package
 }

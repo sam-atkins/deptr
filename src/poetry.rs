@@ -5,13 +5,12 @@ use std::{
     error::Error,
     fs,
     io::Read,
-    path::PathBuf,
+    path::{Path, PathBuf},
     string::String,
 };
 
 extern crate toml;
 use serde::Deserialize;
-use serde_json;
 
 #[derive(Deserialize, Debug)]
 struct PyProjectToml {
@@ -101,7 +100,7 @@ fn get_dev_dependencies(pyproject: PyProjectToml) -> HashSet<String> {
 /// }
 /// ```
 pub fn check_lock_file_for_package_extras(
-    project_path: &PathBuf,
+    project_path: &Path,
     manifest_packages: &HashSet<String>,
     verbose: bool,
 ) -> Result<HashMap<String, Vec<String>>, Box<dyn Error>> {
@@ -121,7 +120,7 @@ pub fn check_lock_file_for_package_extras(
             .iter()
             .fold(HashMap::<String, Vec<String>>::new(), |mut acc, package| {
                 if let Some(extras) = &package.extras {
-                    for (_key, value) in extras {
+                    for value in extras.values() {
                         let array = value.as_array().unwrap();
                         for item in array {
                             let pkg = item.as_str().unwrap();

@@ -51,15 +51,10 @@ pub fn get_args() -> CliResult<Config> {
     let verbose = cli.verbose;
 
     let path_result = validators::valid_python_path(&path);
-    let src_path: PathBuf;
-    match path_result {
-        Ok(valid_path) => {
-            src_path = valid_path;
-        }
-        Err(e) => {
-            return Err(Box::new(e));
-        }
-    }
+    let src_path = match path_result {
+        Ok(valid_path) => valid_path,
+        Err(e) => return Err(Box::new(e)),
+    };
 
     Ok(Config {
         src_path,
@@ -78,7 +73,7 @@ pub fn run(config: Config) -> CliResult<()> {
     let project = PythonProject::new(pkg_manager, config.src_path, config.verbose, config.dev)?;
     let unused_packages = project.get_unused_packages();
 
-    if unused_packages.len() == 0 {
+    if unused_packages.is_empty() {
         println!("======================================");
         println!("No unused packages found.");
     } else {

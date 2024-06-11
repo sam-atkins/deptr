@@ -81,7 +81,7 @@ impl PythonProject {
         // from the unused_packages
         for (pkg, extras) in self.extra_packages.iter() {
             for extra in extras.iter() {
-                let extra_pkg = reformat_package_name(&extra);
+                let extra_pkg = reformat_package_name(extra);
                 if !unused_packages.contains(pkg) && unused_packages.contains(&extra_pkg) {
                     result.remove(&extra_pkg);
                 }
@@ -93,7 +93,7 @@ impl PythonProject {
         // annotated as an extra package of the (possibly) unused parent package
         for (pkg, extras) in self.extra_packages.iter() {
             for extra in extras.iter() {
-                let extra_pkg = reformat_package_name(&extra);
+                let extra_pkg = reformat_package_name(extra);
                 if unused_packages.contains(pkg) && unused_packages.contains(&extra_pkg) {
                     result.remove(&extra_pkg);
                     let annotated_pkg = format!("{} - an extra of {}", extra, pkg);
