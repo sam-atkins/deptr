@@ -2,7 +2,7 @@
 
 `deptr` is a dependency tracker, written in Rust.
 
-It works for Python Poetry projects, scanning the `pyproject.toml` file for dependencies and then recursively scanning Python source code to find if those dependencies are used.
+It works for Python Poetry projects, scanning the `pyproject.toml` manifest file for dependencies and then recursively scanning the project's Python source code to find if the dependencies are in the manifest..
 
 ## Installation
 
