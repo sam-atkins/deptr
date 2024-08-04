@@ -15,5 +15,5 @@ serde_json = "1.0.121"
 toml = "0.8.19"
 
 [dev-dependencies]
-assert_cmd = "2.0.14"
+assert_cmd = "2.0.15"
 predicates = "3.1.2"
